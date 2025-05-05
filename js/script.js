@@ -1,3 +1,5 @@
+const API_URL = 'https://jsonplaceholder.typicode.com/todos';
+
 const input = document.querySelector('#todoInput');
 const addBtn = document.querySelector('#addBtn');
 const list = document.querySelector('#todoList');
@@ -7,10 +9,16 @@ const counter = document.querySelector('#taskCounter');
 let tasks = [];
 let currentFilter = 'all';
 
+// Загрузка задач при запуске
+window.addEventListener('DOMContentLoaded', loadTasks);
+
+// Добавление задачи
 addBtn.addEventListener('click', handleAddTask);
 input.addEventListener('keydown', e => {
   e.key === 'Enter' && handleAddTask();
 });
+
+// Фильтрация задач
 filters.forEach(btn =>
   btn.addEventListener('click', () => {
     currentFilter = btn.dataset.filter;
@@ -20,6 +28,15 @@ filters.forEach(btn =>
   }),
 );
 
+function loadTasks() {
+  fetch(`${API_URL}?_limit=10`)
+    .then(res => res.json())
+    .then(data => {
+      tasks = data.map(t => ({ id: t.id, text: t.title, completed: t.completed }));
+      renderTasks();
+    });
+}
+
 /**
  * Добавляет новую задачу
  */
@@ -27,28 +44,17 @@ function handleAddTask() {
   const text = input.value.trim();
   if (!text) return;
 
-  tasks.push({ text, completed: false });
-  input.value = '';
-  saveTasks();
-  renderTasks();
-}
-
-/**
- * Сохраняет список задач в localStorage
- */
-function saveTasks() {
-  localStorage.setItem('tasks', JSON.stringify(tasks));
-}
-
-/**
- * Загружает задачи из localStorage
- */
-function loadTasks() {
-  const stored = localStorage.getItem('tasks');
-  if (stored) {
-    tasks = JSON.parse(stored);
-    renderTasks();
-  }
+  fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ title: text, completed: false }),
+    headers: { 'Content-type': 'application/json; charset=utf-8' },
+  })
+    .then(res => res.json())
+    .then(newTask => {
+      tasks.unshift({ id: newTask.id, text: newTask.title, completed: newTask.completed });
+      input.value = '';
+      renderTasks();
+    });
 }
 
 /**
@@ -63,32 +69,31 @@ function renderTasks() {
     return true;
   });
 
-  filtered.forEach((task, index) => {
+  filtered.forEach(task => {
     const li = document.createElement('li');
-    li.textContent = task.text;
+    li.className = 'task-item';
     if (task.completed) li.classList.add('done');
 
+    const span = document.createElement('span');
+    span.className = 'text';
+    span.textContent = task.text;
+
     // Редактирование по двойному клику
-    li.addEventListener('dblclick', () => editTask(index));
+    span.addEventListener('dblclick', () => editTask(task.id));
 
     // Переключение выполнено/не выполнено
-    li.addEventListener('click', () => {
-      task.completed = !task.completed;
-      saveTasks();
-      renderTasks();
-    });
+    li.addEventListener('click', () => toggleComplete(task.id));
 
-    const del = document.createElement('button');
-    del.textContent = '✖';
-    del.className = 'deleteBtn';
-    del.addEventListener('click', (e) => {
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✖';
+    delBtn.className = 'deleteBtn';
+    delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      tasks.splice(index, 1);
-      saveTasks();
-      renderTasks();
+      deleteTask(task.id);
     });
 
-    li.appendChild(del);
+    li.appendChild(span);
+    li.appendChild(delBtn);
     list.appendChild(li);
   });
 
@@ -103,15 +108,38 @@ function updateCounter() {
   counter.textContent = `Remaining tasks: ${count}`;
 }
 
+function toggleComplete(id) {
+  const task = tasks.find(t => t.id === id);
+  task.completed = !task.completed;
+
+  fetch(`${API_URL}/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ completed: task.completed }),
+    headers: { 'Content-type': 'application/json; charset=utf-8' },
+  }).then(() => renderTasks());
+}
+
+function deleteTask(id) {
+  fetch(`${API_URL}/${id}`, { method: 'DELETE' }).then(() => {
+    tasks = tasks.filter(t => t.id !== id);
+    renderTasks();
+  });
+}
+
 /**
  * Позволяет редактировать задачу в инпуте
  */
-function editTask(index) {
-  const newText = prompt('Edit task:', tasks[index].text);
-  if (newText !== null) {
-    tasks[index].text = newText.trim();
-    saveTasks();
-  }
-}
+function editTask(id) {
+  const task = tasks.find(t => t.id === id);
+  const newText = prompt('Edit task:', task.text);
+  if (newText === null || !newText.trim()) return;
 
-loadTasks();
+  fetch(`${API_URL}/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title: newText }),
+    headers: { 'Content-type': 'application/json; charset=utf-8' },
+  }).then(() => {
+    task.text = newText.trim();
+    renderTasks();
+  });
+}
