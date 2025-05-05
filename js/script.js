@@ -9,7 +9,9 @@ const counter = document.querySelector('#taskCounter');
 let tasks = [];
 let currentFilter = 'all';
 
-// Загрузка задач при запуске
+/**
+ * Загрузка задач при запуске
+ */
 window.addEventListener('DOMContentLoaded', loadTasks);
 
 // Добавление задачи
@@ -18,7 +20,10 @@ input.addEventListener('keydown', e => {
   e.key === 'Enter' && handleAddTask();
 });
 
-// Фильтрация задач
+/**
+ * Фильтрация задач
+ */
+
 filters.forEach(btn =>
   btn.addEventListener('click', () => {
     currentFilter = btn.dataset.filter;
